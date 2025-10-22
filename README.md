@@ -9,7 +9,8 @@
 ## 🚀 Overview
 
 The **Local User Manager Automation Script** provides a unified automation tool to handle user management tasks across Linux and Windows environments.  
-It supports operations like user creation, deletion, password management, and privilege control — all from a single script powered by Python 🐍, Bash 💥, and PowerShell ⚡.
+It supports operations like user creation, deletion, password management, and privilege control — all from a single script powered by Python 🐍, Bash 💥 and PowerShell ⚡.
+This scripts are designed for non-AD environments.
 
 ---
 
