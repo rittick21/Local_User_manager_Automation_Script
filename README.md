@@ -44,7 +44,7 @@ It supports operations like user creation, deletion, password management, and pr
 
 ### 🐧 Linux (Bash 💥)
 ```bash
-sudo python3 local_user_manager.py --create user1
-sudo python3 local_user_manager.py --delete user1
-sudo python3 local_user_manager.py --disable user1
+sudo python3 local_user_manager.py 
+sudo python3 local_user_manager.py 
+sudo python3 local_user_manager.py 
 
