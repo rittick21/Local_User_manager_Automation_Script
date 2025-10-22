@@ -20,7 +20,7 @@ It supports operations like user creation, deletion, password management, and pr
 | 🐍 **Python 3.x** | Core logic & automation control |
 | 💥 **Bash** | Linux-specific user management commands |
 | ⚡ **PowerShell** | Windows-specific user management automation |
-| 🧰 **Modules Used** | `os`, `subprocess`, `platform`, `getpass`, and native OS commands |
+| 🧰 **Modules Used** | `os`, `subprocess`, `platform` & native OS commands |
 
 ---
 
