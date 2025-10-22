@@ -1,0 +1,35 @@
+1. The main script will be written in Python to ensure cross-platform compatibility.
+2. Script must detect the OS type (Windows, Linux)
+3. If Windows, use PowerShell commands; if Linux, use Bash commands
+4. If Linux then run bash script and give options:
+    a. Create a new user -> Done (Working - partially)
+    b. Delete an existing user, After deleting the user if the user currently logged in then logout the user(Even if the user logged in) -> Done (Working - partially)
+    c. Disable an existing user , After disable the user if the user currently logged in then logout the user -> Partially Done
+    d. Enable an existing user -> Done (Working - partially)
+    e. List all users -> Done (Working - partially)
+    f. Give existing user admin rights -> Done (Working - partially)
+    g. Remove admin rights from user -> Done (Working - partially)
+    h. Change user password, After changing the user password if the user currently logged in then logout the user, password aging -> Done - Partially (Working - partially)
+    i. Modify user groups -> Done (Working - partially)
+    j. Check if a local group exists -> Pending
+    Tested on CentOS 10
+5. If Windows then run PowerShell script and give options:
+    a. Create a new user
+    b. Delete an existing user
+    c. Disable an existing user
+    d. Enable an existing user
+    e. List all users
+    f. Give existing user admin rights
+    g. Remove admin rights from user
+    h. Change user password
+    i. Modify user groups
+    j. Check if a local group exists
+6. Extra features for both OS types:
+   a. Error handling for invalid inputs(e.g. user does not exist, insufficient permissions)    
+   b. While creating a user, it asks for set password automated or manually
+      i. If automated, it asks for password length (minimum 8 characters) and generates a strong password and displays it.
+      ii. If manually, it prompts for password input and validates its strength.
+   c. Log all actions performed with timestamps to a log file for auditing purposes.
+7. Ensure the script requires administrative privileges to run.
+8. Provide clear instructions and prompts for user interaction.
+
