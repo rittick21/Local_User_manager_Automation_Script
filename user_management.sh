@@ -14,11 +14,12 @@ display_menu() {
     echo "3. Enable an existing user"
     echo "4. Disable an existing user"
     echo "5. List all users"
-    echo "6. Give existing user admin rights"
-    echo "7. Remove admin rights from a user"
-    echo "8. Change user password"
-    echo "9. Modify user groups"
-    echo "10. Exit"
+    echo "6. List all existing groups"
+    echo "7. Give existing user admin rights"
+    echo "8. Remove admin rights from a user"
+    echo "9. Change user password"
+    echo "10. Modify user groups"
+    echo "11. Exit"
 }
 
 #Function to detect Linux distro
@@ -366,6 +367,14 @@ list_users() {
     done < <(getent passwd)
 }
 
+# List all existing groups
+list_groups() {
+    printf "%-20s %-6s %-50s\n" "GROUP" "GID" "MEMBERS"
+    while IFS=: read -r group _ gid members; do
+      printf "%-20s %-6s %-50s\n" "$group" "$gid" "$members"
+    done < <(getent group)
+}
+
 # Give a existing user admin rights
 give_admin_rights() {
     read -p "Enter the guid of the user to give admin rights: " user_guid
@@ -561,12 +570,13 @@ while true; do
         3) enable_user ;;
         4) disable_user ;;
         5) list_users ;;
-        6) give_admin_rights ;;
-        7) remove_admin_rights ;;
-        8) change_user_password ;;
-        9) modify_user_groups ;;
-        10) echo "Exiting..."; exit 0 ;;
-        *) echo "Invalid option. Please choose a number between 1 and 10." ;;
+        6) list_groups ;;
+        7) give_admin_rights ;;
+        8) remove_admin_rights ;;
+        9) change_user_password ;;
+        10) modify_user_groups ;;
+        11) echo "Exiting..."; exit 0 ;;
+        *) echo "Invalid option. Please choose a number between 1 and 11." ;;
     esac
     echo
 done    
