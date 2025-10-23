@@ -41,7 +41,7 @@ This scripts are designed for non-AD environments.
 
 ---
 
-| Tested Devices |
+## 🧰 Tested Devices
 | Windows Server 2022 🪟 | Cent-os Stream 10 🐧 | Kali Linux 🐧 |
 
 ## 🧰 Example Commands
