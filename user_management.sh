@@ -566,7 +566,7 @@ modify_user_groups() {
 # Main script loop
 while true; do
     display_menu
-    read -p "Choose an option (1-8): " choice
+    read -p "Choose an option (1-11): " choice
     case $choice in
         1) create_user ;;
         2) delete_user ;;
