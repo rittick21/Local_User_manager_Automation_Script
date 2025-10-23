@@ -542,6 +542,9 @@ modify_user_groups() {
         return 1
     fi
 
+    echo "Available local groups:"
+    list_groups
+
     read -p "Enter the groups to add the user to (comma-separated): " groups_to_add
     IFS=',' read -ra groups_array <<< "$groups_to_add"
     for group in "${groups_array[@]}"; do
