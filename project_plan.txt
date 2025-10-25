@@ -30,6 +30,7 @@
     k. User account permissions management -> Pending
     l. User account expiration management -> Pending
     m. Group account permissions management -> Pending
+    Tested on Windows Server 2022
 6. Extra features for both OS types:
    a. Error handling for invalid inputs(e.g. user does not exist, insufficient permissions)    
    b. While creating a user, it asks for set password automated or manually
