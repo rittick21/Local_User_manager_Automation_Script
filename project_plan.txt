@@ -15,6 +15,8 @@
     k. User account permissions management (e.g. chmod, chown) -> Pending
     l. User account expiration management -> Pending
     m. Group account permissions management -> Pending
+    n. Logging user management activities to a file -> Done
+    o. Log viewing and monitoring -> Done 
     Tested on CentOS 10, Kali Linux
 5. If Windows then run PowerShell script and give options:
     a. Create a new user -> Done (Working - partially)
@@ -30,6 +32,7 @@
     k. User account permissions management -> Pending
     l. User account expiration management -> Pending
     m. Group account permissions management -> Pending
+    n. Logging user management activities to a file -> Pending
     Tested on Windows Server 2022
 6. Extra features for both OS types:
    a. Error handling for invalid inputs(e.g. user does not exist, insufficient permissions)    
