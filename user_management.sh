@@ -70,6 +70,7 @@ view_logs() {
         return 1
     fi
 
+    echo "The viewing is using 'less' command. Use 'q' to quit."
     echo "Displaying log file: $log_file"
     less "$log_file"
 }
@@ -601,12 +602,11 @@ remove_admin_rights() {
     fi
 
     # Verification
-    if grep -E -q "^\s*${user_guid}\s+ALL=\(ALL\)\s+ALL\b" /etc/sudoers || [ -f "/etc/sudoers.d/$user_guid" ] || groups "$user_guid" | grep -q "\bwheel\b" || groups "$user_guid" | grep -q "\bsudo\b"; then
+    user_groups=$(groups "$user_guid" 2>/dev/null)
+    if grep -Eq "^[[:space:]]*${user_guid}[[:space:]]+ALL=\(ALL\)[[:space:]]+ALL\b" /etc/sudoers || [ -f "/etc/sudoers.d/$user_guid" ] || [[ "$user_groups" =~ \b(wheel|sudo)\b ]]; then
         echo "Error: Failed to remove admin rights from user $user_guid."
-        log_activity "Failed to remove admin rights from user $user_guid"
     else
         echo "Admin rights removed from user $user_guid successfully."
-        log_activity "Admin rights removed from user $user_guid successfully."
     fi
 
 }
