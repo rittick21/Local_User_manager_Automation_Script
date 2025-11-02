@@ -297,10 +297,23 @@ delete_user() {
 
     # Verification
     user_groups=$(groups "$user_guid" 2>/dev/null)
-    if grep -Eq "^[[:space:]]*${user_guid}[[:space:]]+ALL=\(ALL\)[[:space:]]+ALL\b" /etc/sudoers || [ -f "/etc/sudoers.d/$user_guid" ] || [[ "$user_groups" =~ \b(wheel|sudo)\b ]]; then
+
+    # Check for ACTIVE (uncommented) sudoers entries in /etc/sudoers
+    active_sudoers=$(grep -E "^[[:space:]]*${user_guid}[[:space:]]" /etc/sudoers 2>/dev/null)
+
+    # Check for ACTIVE (uncommented) sudoers entries in /etc/sudoers.d/ file
+    active_sudoers_d=""
+    if [ -f "/etc/sudoers.d/$user_guid" ]; then
+        active_sudoers_d=$(grep -E "^[[:space:]]*${user_guid}[[:space:]]" "/etc/sudoers.d/$user_guid" 2>/dev/null)
+    fi
+
+    # Check if user still has admin rights
+    if [ -n "$active_sudoers" ] || [ -n "$active_sudoers_d" ] || [[ "$user_groups" =~ \b(wheel|sudo)\b ]]; then
         echo "Error: Failed to remove admin rights from user $user_guid."
+        log_activity "Failed to remove admin rights from user $user_guid."
     else
         echo "Admin rights removed from user $user_guid successfully."
+        log_activity "Successfully removed admin rights from user $user_guid."
     fi
 
     
@@ -603,10 +616,23 @@ remove_admin_rights() {
 
     # Verification
     user_groups=$(groups "$user_guid" 2>/dev/null)
-    if grep -Eq "^[[:space:]]*${user_guid}[[:space:]]+ALL=\(ALL\)[[:space:]]+ALL\b" /etc/sudoers || [ -f "/etc/sudoers.d/$user_guid" ] || [[ "$user_groups" =~ \b(wheel|sudo)\b ]]; then
+
+    # Check for ACTIVE (uncommented) sudoers entries in /etc/sudoers
+    active_sudoers=$(grep -E "^[[:space:]]*${user_guid}[[:space:]]" /etc/sudoers 2>/dev/null)
+
+    # Check for ACTIVE (uncommented) sudoers entries in /etc/sudoers.d/ file
+    active_sudoers_d=""
+    if [ -f "/etc/sudoers.d/$user_guid" ]; then
+        active_sudoers_d=$(grep -E "^[[:space:]]*${user_guid}[[:space:]]" "/etc/sudoers.d/$user_guid" 2>/dev/null)
+    fi
+
+    # Check if user still has admin rights
+    if [ -n "$active_sudoers" ] || [ -n "$active_sudoers_d" ] || [[ "$user_groups" =~ \b(wheel|sudo)\b ]]; then
         echo "Error: Failed to remove admin rights from user $user_guid."
+        log_activity "Failed to remove admin rights from user $user_guid."
     else
         echo "Admin rights removed from user $user_guid successfully."
+        log_activity "Successfully removed admin rights from user $user_guid."
     fi
 
 }
