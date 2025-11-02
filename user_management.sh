@@ -481,14 +481,20 @@ give_admin_rights() {
         return 1
     fi
 
-    if grep -E -q "^\s*${user_guid}\s+ALL=\(ALL\)\s+ALL\b" /etc/sudoers || [ -f "/etc/sudoers.d/$user_guid" ]; then
+    if grep -E -q "^\s*${user_guid}\s+ALL=\(ALL\)\s+ALL\b" /etc/sudoers; then
         echo "User $user_guid already has admin rights."
         log_activity "User $user_guid already has admin rights."
         return 0
+    elif [ -f "/etc/sudoers.d/$user_guid" ] && grep -E -q "^[[:space:]]*${user_guid}[[:space:]]" "/etc/sudoers.d/$user_guid"; then
+        echo "User $user_guid already has admin rights."
+        log_activity "User $user_guid already has admin rights."
+        return 0  
+    else
+        echo "Granting admin rights to user $user_guid..."  
+        echo "$user_guid    ALL=(ALL)       ALL" > "/etc/sudoers.d/$user_guid"  
+        chmod 440 "/etc/sudoers.d/$user_guid"  
     fi
-
-    echo "$user_guid    ALL=(ALL)       ALL" > "/etc/sudoers.d/$user_guid"
-
+    
     # Alternative approach (appending to /etc/sudoers directly) - not recommended
     # echo "$user_guid    ALL=(ALL)       ALL" >> /etc/sudoers
 
