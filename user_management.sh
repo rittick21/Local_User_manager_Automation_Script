@@ -42,6 +42,30 @@ get_linux_distribution() {
     log_activity "Detected Linux distribution: $ID"
 }
 
+# Function to copy mail format from terminal
+print_user_creds() {
+  servername=$(hostname -f)
+  server_ip=$(ip -4 -o addr show dev enp0s3 | awk '{print $4}' | cut -d/ -f1)
+  username=$1
+  user_guid=$2
+  password=$3
+
+  if [[ -z "$server_ip" || -z "$username" || -z "$user_guid" || -z "$password" ]]; then
+    echo "Usage: print_user_creds <servername> <server_ip> <username> <user_guid> <password>"
+    return 1
+  fi
+
+  cat <<-MSG
+Subject: New user account creds on server [${servername}]
+Body: Hi ${username},
+      Your local account has been created on ${servername}.
+      IP: ${server_ip}
+      Username: ${user_guid}
+      Password: ${password}
+      You can take the ssh access using the above credentials using putty or MobaXterm.
+MSG
+}
+
 # Function to logging user management activities
 log_activity(){
     log_message=$1
@@ -59,7 +83,7 @@ log_activity(){
     fi   
 
     # Append log message with timestamp
-    echo "$(date '+%Y-%m-%d %H:%M:%S') - $log_message" >> "$log_file"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - $log_message - by $(whoami) - on $(hostname -f)" >> "$log_file"
 }
 
 # Function to view and monitor logs
@@ -77,7 +101,7 @@ view_logs() {
 
 # Function to set user password based on OS distro
 set_user_password() {
-    username=$1
+    user_guid=$1
     password=$2
     distro=$(get_linux_distribution)
     # distro=$(awk -F= '/^ID=/{gsub(/"/,"",$2); print $2; exit}' /etc/os-release)
@@ -85,41 +109,53 @@ set_user_password() {
     case "$distro" in 
         "ubuntu"|"debian"|"pop"|"mint"|"kali")
             # Debian/Ubuntu based systems
-            echo "$username:$password" | chpasswd
+            echo "$user_guid:$password" | chpasswd
             ;;
         "rhel"|"centos"|"fedora"|"rocky"|"alma"|"amazon"|"oracle"|"ol"|"amzn"|"almalinux")
             # RHEL based systems
-            echo "$password" | passwd --stdin "$username"
+            echo "$password" | passwd --stdin "$user_guid"
             ;;  
         "suse"|"opensuse"|"sles")
             # SUSE based systems
-            echo "$password" | passwd --stdin "$username"
+            echo "$password" | passwd --stdin "$user_guid"
             ;;
         "arch"|"manjaro")
             # Arch based systems
-            echo "$username:$password" | chpasswd
+            echo "$user_guid:$password" | chpasswd
             ;;
         *) 
            # Fallback method that works on most Linux distros
-           (echo "$password"; echo "$password") | passwd "$username"
+           (echo "$password"; echo "$password") | passwd "$user_guid"
            ;;
     esac
 
     # Verify if the password is set successfully
     if [ $? -ne 0 ]; then 
-       echo "Error: Failed to set password for user $username"
-       log_activity "Failed to set password for user $username"
+       echo "Error: Failed to set password for user $user_guid"
+       log_activity "Failed to set password for user $user_guid"
        return 1
     else 
-        echo "Password set successfully for user $username"
-        log_activity "Password set successfully for user $username"
+        echo "Password set successfully for user $user_guid"
+        log_activity "Password set successfully for user $user_guid"
     fi          
 }
 
 # Function to create a new user
 create_user() {
     read -p "Enter username: " username
+    if [ -z "$username" ]; then
+        echo "Username cannot be empty. Please provide a valid username."
+        log_activity "Failed to create user: Empty username provided."
+        return
+    fi
+
     read -p "Enter the guid for the user (This is mandatory): " user_guid
+    if [ -z "$user_guid" ]; then
+        echo "User guid cannot be empty. Please provide a valid guid."
+        log_activity "Failed to create user: Empty guid provided."
+        return
+    fi
+
     if id -u "$user_guid" >/dev/null 2>&1; then
         echo "User with guid $user_guid already exists. Please choose a different guid."
         log_activity "Attempted to create user with existing guid $user_guid"
@@ -177,6 +213,8 @@ create_user() {
     
     echo "User $user_guid created successfully."
     log_activity "User $user_guid created successfully."
+    echo $username
+    print_user_creds $username $user_guid $password
 }
 
 # Function to delete an existing user (In industry, we doesn't prefer to delete a user permanently for audit and compliance reasons.)
@@ -184,6 +222,12 @@ create_user() {
 delete_user() {
     read -p "Enter the username(guid) of the user to delete: " user_guid
     
+    if [ -z "$user_guid" ]; then
+        echo "User guid cannot be empty. Please provide a valid guid."
+        log_activity "Failed to delete user: Empty guid provided."
+        return
+    fi
+
     if ! getent passwd "$user_guid" >/dev/null; then
         echo "User $user_guid does not exist."
         log_activity "Attempted to delete non-existent user $user_guid"
@@ -312,8 +356,8 @@ delete_user() {
         echo "Error: Failed to remove admin rights from user $user_guid."
         log_activity "Failed to remove admin rights from user $user_guid."
     else
-        echo "Admin rights removed from user $user_guid successfully."
-        log_activity "Successfully removed admin rights from user $user_guid."
+        echo "Admin rights not exists from user $user_guid successfully."
+        log_activity "Successfully checked that no admin rights there for user $user_guid."
     fi
 
     
@@ -352,6 +396,12 @@ delete_user() {
 # Function to enable an existing user
 enable_user() {
     read -p "Enter the username(guid) of the user to enable: " user_guid
+    if [ -z "$user_guid" ]; then
+        echo "User guid cannot be empty. Please provide a valid guid."
+        log_activity "Failed to enable user: Empty guid provided."
+        return
+    fi
+
     if ! getent passwd "$user_guid" >/dev/null; then
         echo "User $user_guid does not exist."
         log_activity "Attempted to enable non-existent user $user_guid."
@@ -371,6 +421,11 @@ enable_user() {
 # Function to disable an existing user
 disable_user() {
     read -p "Enter the username(guid) of the user to disable: " user_guid
+    if [ -z "$user_guid" ]; then
+        echo "User guid cannot be empty. Please provide a valid guid."
+        log_activity "Failed to disable user: Empty guid provided."
+        return
+    fi
 
     if ! getent passwd "$user_guid" >/dev/null; then
         echo "User $user_guid does not exist."
@@ -475,6 +530,13 @@ list_groups() {
 # Give a existing user admin rights
 give_admin_rights() {
     read -p "Enter the guid of the user to give admin rights: " user_guid
+
+    if [ -z "$user_guid" ]; then
+        echo "User guid cannot be empty. Please provide a valid guid."
+        log_activity "Failed to give admin rights: Empty guid provided."
+        return
+    fi
+
     if ! id "$user_guid" &>/dev/null; then
         echo "Error: User $user_guid does not exist."
         log_activity "Failed to give admin rights to non-existent user $user_guid."
@@ -511,6 +573,12 @@ give_admin_rights() {
 # Function to remove admin rights from a user
 remove_admin_rights() {
     read -p "Enter the guid of the user to remove admin rights: " user_guid
+    if [ -z "$user_guid" ]; then
+        echo "User guid cannot be empty. Please provide a valid guid."
+        log_activity "Failed to remove admin rights: Empty guid provided."
+        return
+    fi
+
     if ! id "$user_guid" &>/dev/null; then
         echo "Error: User $user_guid does not exist."
         log_activity "Failed to remove admin rights from non-existent user $user_guid."
@@ -646,6 +714,12 @@ remove_admin_rights() {
 # Change the existing user password
 change_user_password() {
     read -p "Enter the guid of the user to change password: " user_guid
+    if [ -z "$user_guid" ]; then
+        echo "User guid cannot be empty. Please provide a valid guid."
+        log_activity "Failed to change password: Empty guid provided."
+        return
+    fi
+
     if ! id "$user_guid" &>/dev/null; then
         echo "Error: User $user_guid does not exist."
         log_activity "Failed to change password for non-existent user $user_guid"
@@ -678,6 +752,12 @@ change_user_password() {
 # Modify user groups
 modify_user_groups() {
     read -p "Enter the guid of the user to modify groups: " user_guid
+    if [ -z "$user_guid" ]; then
+        echo "User guid cannot be empty. Please provide a valid guid."
+        log_activity "Failed to modify groups: Empty guid provided."
+        return
+    fi
+
     if ! id "$user_guid" &>/dev/null; then
         echo "Error: User $user_guid does not exist."
         log_activity "Failed to modify groups for non-existent user $user_guid"
@@ -711,7 +791,7 @@ modify_user_groups() {
 # Main script loop
 while true; do
     display_menu
-    read -p "Choose an option (1-11): " choice
+    read -p "Choose an option (1-12): " choice
     case $choice in
         1) create_user ;;
         2) delete_user ;;

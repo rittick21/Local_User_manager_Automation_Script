@@ -17,6 +17,14 @@
     m. Group account permissions management -> Pending
     n. Logging user management activities to a file -> Done
     o. Log viewing and monitoring -> Done 
+    p. Generate a mail format on terminal like this: -> Pending
+       Subject: New user account creds on server [servername]
+         Body: Hi [username],
+               Your local account has been created on [servername].
+               IP: [server_ip]
+               Username: [username]
+               Password: [password]
+               You can take the ssh access using the above credentials using putty or MobaXterm.
     Tested on CentOS 10, Kali Linux
 5. If Windows then run PowerShell script and give options:
     a. Create a new user -> Done (Working - partially)
@@ -33,6 +41,14 @@
     l. User account expiration management -> Pending
     m. Group account permissions management -> Pending
     n. Logging user management activities to a file -> Pending
+    o. Log viewing and monitoring -> Done 
+    p. Generate a mail format on terminal like this: -> Pending
+       Subject: New user account creds on server [servername]
+         Body: Hi [username],
+               Your local account has been created on [servername].
+               Username: [username]
+               Password: [password]
+               You can take the RDP access using the above credentials.
     Tested on Windows Server 2022
 6. Extra features for both OS types:
    a. Error handling for invalid inputs(e.g. user does not exist, insufficient permissions)    

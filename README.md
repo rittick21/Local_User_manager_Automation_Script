@@ -40,6 +40,7 @@ This scripts are designed for non-AD environments.
 | 🔑 **Change User Password** | Updates the user’s password and enforces logout if active. Supports password aging. | ⚙️ Done *(Working)* |
 | 👥 **Modify User Groups** | Adds or removes users from system groups. | ✅ Done *(Working)* |
 | 📊 **Added Logging and monitoring** | Each and every activity is logged and monitored via lo_file. | ✅ Done *(Working - Pertially)* |
+| ✉️ **Printing Mail format** | Each and every activity is logged and monitored via lo_file. | ✅ Done *(Working - Pertially)* |
 
 ---
 
