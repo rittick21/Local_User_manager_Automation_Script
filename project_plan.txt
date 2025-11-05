@@ -40,9 +40,9 @@
     k. User account permissions management -> Pending
     l. User account expiration management -> Pending
     m. Group account permissions management -> Pending
-    n. Logging user management activities to a file -> Pending
+    n. Logging user management activities to a file -> Done
     o. Log viewing and monitoring -> Done 
-    p. Generate a mail format on terminal like this: -> Pending
+    p. Generate a mail format on terminal like this: -> Done
        Subject: New user account creds on server [servername]
          Body: Hi [username],
                Your local account has been created on [servername].
