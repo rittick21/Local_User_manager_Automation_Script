@@ -27,8 +27,69 @@ function Show-Menu {
     Write-Host "8.  Remove admin rights from a user"
     Write-Host "9.  Change user password"
     Write-Host "10. Modify user groups"
-    Write-Host "11. Exit"
+    Write-Host "11. Show logs at C:\Logs\UserManagement.log"
+    Write-Host "12. Exit"
     Write-Host "========================================" -ForegroundColor Cyan
+}
+
+# Function to logging and monitoring activities
+function Write-Log {
+    [CmdletBinding()]
+    Param (
+        [Parameter(Mandatory=$true)]
+        [string]$Message,
+
+        [Parameter(Mandatory=$false)]
+        [string]$LogFilePath = "C:\Logs\UserManagement.log" # Default log file path
+    )
+
+    Begin {
+        # Ensure the log file directory exists
+        $LogDirectory = Split-Path -Parent $LogFilePath
+        if (!(Test-Path -Path $LogDirectory -PathType Container)) {
+            New-Item -Path $LogDirectory -ItemType Directory -Force | Out-Null
+        }
+    }
+
+    Process {
+        $Timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+        $HostName = $env:COMPUTERNAME
+        $LogEntry = "$Timestamp - $Message - $HostName"
+        Add-Content -Path $LogFilePath -Value $LogEntry -Encoding UTF8
+    }
+}
+
+# Function to view logs
+function Show-Logs {
+    $LogFilePath = "C:\Logs\UserManagement.log"
+    if (Test-Path -Path $LogFilePath) {
+        Write-Host "`n--- User Management Logs ---`n" -ForegroundColor Cyan
+        Get-Content -Path $LogFilePath | ForEach-Object { Write-Host $_ }
+    }
+    else {
+        Write-Host "No logs found at $LogFilePath" -ForegroundColor Yellow
+    }
+}
+
+# Function for printing mail format of User creds in terminal
+function Show-UserCredentials {
+    param(
+        [string]$Username,
+        [SecureString]$Password,
+        [string]$GUID,
+        [string]$ServerName = $env:COMPUTERNAME,
+        [string]$IP_Address = (Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.InterfaceAlias -notlike "*Loopback*" -and $_.IPAddress -notlike "169.*" } | Select-Object -First 1).IPAddress
+    )
+    
+    Write-Host "`n================ User Credentials ================" -ForegroundColor Cyan
+    Write-Host "Dear $Username," -ForegroundColor Yellow
+    Write-Host "`nYour account has been created on the server: $ServerName with IP Address: $IP_Address" -ForegroundColor Green
+    Write-Host "Please find your login credentials below:" -ForegroundColor Green
+    Write-Host "`nUsername: $ServerName\$Username" -ForegroundColor White  
+    Write-Host "Password: $Password" -ForegroundColor White
+    Write-Host "`nPlease change your password upon first login." -ForegroundColor Yellow
+    Write-Host "If you have any questions, feel free to reach out to us." -ForegroundColor Green
+    Write-Host "==================================================" -ForegroundColor Cyan
 }
 
 # Function to generate random password
@@ -102,6 +163,7 @@ function New-LocalUserAccount {
     # Check if user already exists
     if (Get-LocalUser -Name $guid -ErrorAction SilentlyContinue) {
         Write-Host "Error: User with GUID '$guid' already exists." -ForegroundColor Red
+        Write-Log -Message "Failed to create user '$guid': User already exists."
         return
     }
     
@@ -144,6 +206,7 @@ function New-LocalUserAccount {
         
         if ($password.Length -lt 8) {
             Write-Host "Error: Password must be at least 8 characters long." -ForegroundColor Red
+            Write-Log -Message "Failed to create user '$guid': Password must be at least 8 characters long."
             return
         }
     }
@@ -170,9 +233,12 @@ function New-LocalUserAccount {
         try {
             Add-LocalGroupMember -Group "Remote Desktop Users" -Member $guid -ErrorAction Stop
             Write-Host "User added to 'Remote Desktop Users' group for RDP access." -ForegroundColor Green
+            Show-UserCredentials -Username $fullName -Password $password -GUID $guid
+            Write-Log -Message "User '$guid' added to 'Remote Desktop Users' group."
         }
         catch {
             Write-Host "Warning: Could not add user to Remote Desktop Users group - $($_.Exception.Message)" -ForegroundColor Yellow
+            Write-Log -Message "Warning: Could not add user '$guid' to 'Remote Desktop Users' group - $($_.Exception.Message)"
         }
         
         # Ask if user should be added to Administrators group
@@ -181,17 +247,21 @@ function New-LocalUserAccount {
             try {
                 Add-LocalGroupMember -Group "Administrators" -Member $guid -ErrorAction Stop
                 Write-Host "User added to 'Administrators' group successfully." -ForegroundColor Green
+                Write-Log -Message "User '$guid' added to 'Administrators' group."
             }
             catch {
                 Write-Host "Error: Failed to add user to Administrators group - $($_.Exception.Message)" -ForegroundColor Red
+                Write-Log -Message "Error: Failed to add user '$guid' to 'Administrators' group - $($_.Exception.Message)"
             }
         }
         else {
             Write-Host "User not added to Administrators group." -ForegroundColor Yellow
+            Write-Log -Message "User '$guid' not added to 'Administrators' group."
         }
     }
     catch {
         Write-Host "Error: Failed to create user - $($_.Exception.Message)" -ForegroundColor Red
+        Write-Log -Message "Error: Failed to create user '$guid' - $($_.Exception.Message)"
     }
 }
 
@@ -205,6 +275,7 @@ function Remove-LocalUserAccount {
     $user = Get-LocalUser -Name $guid -ErrorAction SilentlyContinue
     if (-not $user) {
         Write-Host "Error: User with GUID '$guid' does not exist." -ForegroundColor Red
+        Write-Log -Message "Error: User with GUID '$guid' does not exist."
         return
     }
     
@@ -217,6 +288,7 @@ function Remove-LocalUserAccount {
     # Prevent deletion of critical accounts
     if ($guid -eq "Administrator" -or $guid -eq $env:USERNAME) {
         Write-Host "Error: Cannot delete Administrator or currently logged-in user." -ForegroundColor Red
+        Write-Log -Message "Error: Cannot delete Administrator or currently logged-in user."
         return
     }
     
@@ -227,6 +299,7 @@ function Remove-LocalUserAccount {
         $forceLogout = Read-Host "Do you want to force logout and delete? (Y/N)"
         if ($forceLogout -ne 'Y' -and $forceLogout -ne 'y') {
             Write-Host "User deletion cancelled." -ForegroundColor Yellow
+            Write-Log -Message "User deletion cancelled for '$guid'."
             return
         }
     }
@@ -240,6 +313,7 @@ function Remove-LocalUserAccount {
         $killProcesses = Read-Host "Do you want to kill all processes and delete? (Y/N)"
         if ($killProcesses -ne 'Y' -and $killProcesses -ne 'y') {
             Write-Host "User deletion cancelled." -ForegroundColor Yellow
+            Write-Log -Message "User deletion cancelled for '$guid'."
             return
         }
     }
@@ -248,6 +322,7 @@ function Remove-LocalUserAccount {
     $confirmation = Read-Host "Are you sure you want to delete user '$guid'? (Y/N)"
     if ($confirmation -ne 'Y' -and $confirmation -ne 'y') {
         Write-Host "User deletion cancelled." -ForegroundColor Yellow
+        Write-Log -Message "User deletion cancelled for '$guid'."
         return
     }
     
@@ -262,16 +337,19 @@ function Remove-LocalUserAccount {
         if ($adminMembers.Name -contains "$env:COMPUTERNAME\$guid") {
             Remove-LocalGroupMember -Group "Administrators" -Member $guid -ErrorAction Stop
             Write-Host "Removed user from Administrators group." -ForegroundColor Green
+            Write-Log -Message "User '$guid' removed from 'Administrators' group."
         }
     }
     catch {
         Write-Host "Warning: Could not remove from Administrators group - $($_.Exception.Message)" -ForegroundColor Yellow
+        Write-Log -Message "Warning: Could not remove user '$guid' from 'Administrators' group - $($_.Exception.Message)"
     }
     
     # Delete the user
     try {
         Remove-LocalUser -Name $guid -ErrorAction Stop
         Write-Host "User '$guid' deleted successfully." -ForegroundColor Green
+        Write-Log -Message "User '$guid' deleted successfully."
         
         # Delete user profile
         $profilePath = "C:\Users\$guid"
@@ -281,15 +359,18 @@ function Remove-LocalUserAccount {
                 try {
                     Remove-Item -Path $profilePath -Recurse -Force -ErrorAction Stop
                     Write-Host "User profile deleted successfully." -ForegroundColor Green
+                    Write-Log -Message "User profile '$profilePath' deleted successfully."
                 }
                 catch {
                     Write-Host "Warning: Could not delete profile folder - $($_.Exception.Message)" -ForegroundColor Yellow
+                    Write-Log -Message "Warning: Could not delete profile folder '$profilePath' - $($_.Exception.Message)"
                 }
             }
         }
     }
     catch {
         Write-Host "Error: Failed to delete user - $($_.Exception.Message)" -ForegroundColor Red
+        Write-Log -Message "Error: Failed to delete user '$guid' - $($_.Exception.Message)"
     }
 }
 
@@ -302,6 +383,7 @@ function Enable-LocalUserAccount {
     $user = Get-LocalUser -Name $guid -ErrorAction SilentlyContinue
     if (-not $user) {
         Write-Host "Error: User with GUID '$guid' does not exist." -ForegroundColor Red
+        Write-Log -Message "Error: User with GUID '$guid' does not exist."
         return
     }
     
@@ -314,9 +396,11 @@ function Enable-LocalUserAccount {
     try {
         Enable-LocalUser -Name $guid -ErrorAction Stop
         Write-Host "User '$guid' enabled successfully." -ForegroundColor Green
+        Write-Log -Message "User '$guid' enabled successfully."
     }
     catch {
         Write-Host "Error: Failed to enable user - $($_.Exception.Message)" -ForegroundColor Red
+        Write-Log -Message "Error: Failed to enable user '$guid' - $($_.Exception.Message)"
     }
 }
 
@@ -329,6 +413,7 @@ function Disable-LocalUserAccount {
     $user = Get-LocalUser -Name $guid -ErrorAction SilentlyContinue
     if (-not $user) {
         Write-Host "Error: User with GUID '$guid' does not exist." -ForegroundColor Red
+        Write-Log -Message "Error: User with GUID '$guid' does not exist."
         return
     }
     
@@ -341,6 +426,7 @@ function Disable-LocalUserAccount {
     # Prevent disabling critical accounts
     if ($guid -eq "Administrator" -or $guid -eq $env:USERNAME) {
         Write-Host "Error: Cannot disable Administrator or currently logged-in user." -ForegroundColor Red
+        Write-Log -Message "Error: Cannot disable Administrator or currently logged-in user."
         return
     }
     
@@ -351,6 +437,7 @@ function Disable-LocalUserAccount {
         $forceLogout = Read-Host "Do you want to force logout and disable? (Y/N)"
         if ($forceLogout -ne 'Y' -and $forceLogout -ne 'y') {
             Write-Host "User disabling cancelled." -ForegroundColor Yellow
+            Write-Log -Message "User disabling cancelled for '$guid'."
             return
         }
     }
@@ -364,6 +451,7 @@ function Disable-LocalUserAccount {
         $killProcesses = Read-Host "Do you want to kill all processes and disable? (Y/N)"
         if ($killProcesses -ne 'Y' -and $killProcesses -ne 'y') {
             Write-Host "User disabling cancelled." -ForegroundColor Yellow
+            Write-Log -Message "User disabling cancelled for '$guid'."
             return
         }
     }
@@ -372,6 +460,7 @@ function Disable-LocalUserAccount {
     $confirmation = Read-Host "Are you sure you want to disable user '$guid'? (Y/N)"
     if ($confirmation -ne 'Y' -and $confirmation -ne 'y') {
         Write-Host "User disabling cancelled." -ForegroundColor Yellow
+        Write-Log -Message "User disabling cancelled for '$guid'."
         return
     }
     
@@ -384,9 +473,11 @@ function Disable-LocalUserAccount {
     try {
         Disable-LocalUser -Name $guid -ErrorAction Stop
         Write-Host "User '$guid' disabled successfully." -ForegroundColor Green
+        Write-Log -Message "User '$guid' disabled successfully."
     }
     catch {
         Write-Host "Error: Failed to disable user - $($_.Exception.Message)" -ForegroundColor Red
+        Write-Log -Message "Error: Failed to disable user '$guid' - $($_.Exception.Message)"
     }
 }
 
@@ -408,6 +499,7 @@ function Show-AllUsers {
     }
     catch {
         Write-Host "Error: Failed to list users - $($_.Exception.Message)" -ForegroundColor Red
+        Write-Log -Message "Error: Failed to list users - $($_.Exception.Message)"
     }
 }
 
@@ -448,6 +540,7 @@ function Show-AllGroups {
     }
     catch {
         Write-Host "Error: Failed to list groups - $($_.Exception.Message)" -ForegroundColor Red
+        Write-Log -Message "Error: Failed to list groups - $($_.Exception.Message)"
     }
 }
 
@@ -460,6 +553,7 @@ function Grant-AdminRights {
     $user = Get-LocalUser -Name $guid -ErrorAction SilentlyContinue
     if (-not $user) {
         Write-Host "Error: User with GUID '$guid' does not exist." -ForegroundColor Red
+        Write-Log -Message "Error: User with GUID '$guid' does not exist."
         return
     }
     
@@ -473,15 +567,18 @@ function Grant-AdminRights {
     $adminMembers = Get-LocalGroupMember -Group "Administrators" -ErrorAction SilentlyContinue
     if ($adminMembers.Name -contains "$env:COMPUTERNAME\$guid") {
         Write-Host "User '$guid' already has admin rights." -ForegroundColor Yellow
+        Write-Log -Message "User '$guid' already has admin rights."
         return
     }
     
     try {
         Add-LocalGroupMember -Group "Administrators" -Member $guid -ErrorAction Stop
         Write-Host "Admin rights granted to user '$guid' successfully." -ForegroundColor Green
+        Write-Log -Message "Admin rights granted to user '$guid' successfully."
     }
     catch {
         Write-Host "Error: Failed to grant admin rights - $($_.Exception.Message)" -ForegroundColor Red
+        Write-Log -Message "Error: Failed to grant admin rights - $($_.Exception.Message)"
     }
 }
 
@@ -494,6 +591,7 @@ function Revoke-AdminRights {
     $user = Get-LocalUser -Name $guid -ErrorAction SilentlyContinue
     if (-not $user) {
         Write-Host "Error: User with GUID '$guid' does not exist." -ForegroundColor Red
+        Write-Log -Message "Error: User with GUID '$guid' does not exist."
         return
     }
     
@@ -506,6 +604,7 @@ function Revoke-AdminRights {
     # Prevent removing admin rights from Administrator
     if ($guid -eq "Administrator") {
         Write-Host "Error: Cannot remove admin rights from Administrator account." -ForegroundColor Red
+        Write-Log -Message "Error: Cannot remove admin rights from Administrator account."
         return
     }
     
@@ -516,6 +615,7 @@ function Revoke-AdminRights {
         $proceed = Read-Host "Do you want to proceed with removing admin rights? (Y/N)"
         if ($proceed -ne 'Y' -and $proceed -ne 'y') {
             Write-Host "Operation cancelled." -ForegroundColor Yellow
+            Write-Log -Message "User '$guid' removal cancelled."
             return
         }
     }
@@ -529,6 +629,7 @@ function Revoke-AdminRights {
         $proceed = Read-Host "Do you want to proceed with removing admin rights? (Y/N)"
         if ($proceed -ne 'Y' -and $proceed -ne 'y') {
             Write-Host "Operation cancelled." -ForegroundColor Yellow
+            Write-Log -Message "User '$guid' removal cancelled."
             return
         }
     }
@@ -537,6 +638,7 @@ function Revoke-AdminRights {
     $confirmation = Read-Host "Are you sure you want to remove admin rights from '$guid'? (Y/N)"
     if ($confirmation -ne 'Y' -and $confirmation -ne 'y') {
         Write-Host "Operation cancelled." -ForegroundColor Yellow
+        Write-Log -Message "User '$guid' removal cancelled."
         return
     }
     
@@ -549,15 +651,18 @@ function Revoke-AdminRights {
     $adminMembers = Get-LocalGroupMember -Group "Administrators" -ErrorAction SilentlyContinue
     if ($adminMembers.Name -notcontains "$env:COMPUTERNAME\$guid") {
         Write-Host "User '$guid' does not have admin rights." -ForegroundColor Yellow
+        Write-Log -Message "User '$guid' does not have admin rights."
         return
     }
     
     try {
         Remove-LocalGroupMember -Group "Administrators" -Member $guid -ErrorAction Stop
         Write-Host "Admin rights removed from user '$guid' successfully." -ForegroundColor Green
+        Write-Log -Message "Admin rights removed from user '$guid' successfully."
     }
     catch {
         Write-Host "Error: Failed to remove admin rights - $($_.Exception.Message)" -ForegroundColor Red
+        Write-Log -Message "Error: Failed to remove admin rights - $($_.Exception.Message)"
     }
 }
 
@@ -570,6 +675,7 @@ function Set-UserPassword {
     $user = Get-LocalUser -Name $guid -ErrorAction SilentlyContinue
     if (-not $user) {
         Write-Host "Error: User with GUID '$guid' does not exist." -ForegroundColor Red
+        Write-Log -Message "Error: User with GUID '$guid' does not exist."
         return
     }
     
@@ -588,11 +694,13 @@ function Set-UserPassword {
         if ([int]::TryParse($passLength, [ref]$length) -and $length -ge 8) {
             $password = New-RandomPassword -Length $length
             Write-Host "Generated password: $password" -ForegroundColor Green
+            Write-Log -Message "Password for user '$guid' changed automatically."
         }
         else {
             Write-Host "Invalid length. Using minimum length of 8." -ForegroundColor Yellow
             $password = New-RandomPassword -Length 8
             Write-Host "Generated password: $password" -ForegroundColor Green
+            Write-Log -Message "Password for user '$guid' changed automatically."
         }
     }
     else {
@@ -603,6 +711,7 @@ function Set-UserPassword {
         
         if ($password.Length -lt 8) {
             Write-Host "Error: Password must be at least 8 characters long." -ForegroundColor Red
+            Write-Log -Message "Error: Password for user '$guid' must be at least 8 characters long."
             return
         }
     }
@@ -611,6 +720,7 @@ function Set-UserPassword {
         $securePass = ConvertTo-SecureStringFromPlain -PlainText $password
         Set-LocalUser -Name $guid -Password $securePass -ErrorAction Stop
         Write-Host "Password changed successfully for user '$guid'." -ForegroundColor Green
+        Write-Log -Message "Password changed successfully for user '$guid'."
         
         # Check if user is logged in and force logout
         $loggedIn = quser 2>$null | Select-String -Pattern $guid
@@ -624,6 +734,7 @@ function Set-UserPassword {
     }
     catch {
         Write-Host "Error: Failed to change password - $($_.Exception.Message)" -ForegroundColor Red
+        Write-Log -Message "Error: Failed to change password for user '$guid' - $($_.Exception.Message)"
     }
 }
 
@@ -660,6 +771,7 @@ function Update-UserGroups {
     }
     catch {
         Write-Host "Could not retrieve current groups." -ForegroundColor Yellow
+        Write-Log -Message "Error: Could not retrieve current groups for user '$guid' - $($_.Exception.Message)"
     }
     
     # Show available groups
@@ -671,6 +783,7 @@ function Update-UserGroups {
     
     if ([string]::IsNullOrWhiteSpace($groupsToAdd)) {
         Write-Host "No groups specified. Operation cancelled." -ForegroundColor Yellow
+        Write-Log -Message "User '$guid' group modification cancelled."
         return
     }
     
@@ -684,6 +797,7 @@ function Update-UserGroups {
         if (-not $groupExists) {
             Write-Host "Error: Group '$group' does not exist." -ForegroundColor Red
             Write-Host "Please make sure to add and configure the group first." -ForegroundColor Yellow
+            Write-Log -Message "Error: Group '$group' does not exist."
             continue
         }
         
@@ -691,15 +805,18 @@ function Update-UserGroups {
         $members = Get-LocalGroupMember -Group $group -ErrorAction SilentlyContinue
         if ($members.Name -contains "$env:COMPUTERNAME\$guid") {
             Write-Host "User '$guid' is already a member of group '$group'." -ForegroundColor Yellow
+            Write-Log -Message "User '$guid' is already a member of group '$group'."
             continue
         }
         
         try {
             Add-LocalGroupMember -Group $group -Member $guid -ErrorAction Stop
             Write-Host "User '$guid' added to group '$group' successfully." -ForegroundColor Green
+            Write-Log -Message "User '$guid' added to group '$group' successfully."
         }
         catch {
             Write-Host "Error: Failed to add user to group '$group' - $($_.Exception.Message)" -ForegroundColor Red
+            Write-Log -Message "Error: Failed to add user to group '$group' - $($_.Exception.Message)"
         }
     }
 }
@@ -712,6 +829,7 @@ try {
     if (-not $isAdmin) {
         Write-Host "Error: This script must be run as Administrator!" -ForegroundColor Red
         Write-Host "Right-click PowerShell and select 'Run as Administrator'" -ForegroundColor Yellow
+        Write-Log -Message "Script not run as Administrator."
         pause
         exit 1
     }
@@ -734,7 +852,8 @@ try {
             '8'  { Revoke-AdminRights }
             '9'  { Set-UserPassword }
             '10' { Update-UserGroups }
-            '11' { 
+            '11' {Show-Logs}
+            '12' { 
                 Write-Host "`nExiting..." -ForegroundColor Green
                 exit 0 
             }
@@ -749,6 +868,7 @@ try {
 }
 catch {
     Write-Host "Critical Error: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Log -Message "Critical Error: $($_.Exception.Message)"
     pause
     exit 1  
 }

@@ -23,7 +23,7 @@ display_menu() {
     echo "12. Exit"
 }
 
-#Function to detect Linux distro
+# Function to detect Linux distro
 get_linux_distribution() {
     if [ -f /etc/os-release ]; then
         # Source /etc/os-release to load distribution variables (e.g. ID, NAME,
