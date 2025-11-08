@@ -75,18 +75,25 @@ function Show-Logs {
 function Show-UserCredentials {
     param(
         [string]$Username,
-        [SecureString]$Password,
+        [string]$PlainTextPassword,  
         [string]$GUID,
         [string]$ServerName = $env:COMPUTERNAME,
-        [string]$IP_Address = (Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.InterfaceAlias -notlike "*Loopback*" -and $_.IPAddress -notlike "169.*" } | Select-Object -First 1).IPAddress
+        [string]$IP_Address = (Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | 
+                               Where-Object { $_.InterfaceAlias -notlike "*Loopback*" -and $_.IPAddress -notlike "169.*" } | 
+                               Select-Object -First 1).IPAddress
     )
+    
+    # Handle null IP address
+    if (-not $IP_Address) {
+        $IP_Address = "N/A"
+    }
     
     Write-Host "`n================ User Credentials ================" -ForegroundColor Cyan
     Write-Host "Dear $Username," -ForegroundColor Yellow
     Write-Host "`nYour account has been created on the server: $ServerName with IP Address: $IP_Address" -ForegroundColor Green
     Write-Host "Please find your login credentials below:" -ForegroundColor Green
-    Write-Host "`nUsername: $ServerName\$Username" -ForegroundColor White  
-    Write-Host "Password: $Password" -ForegroundColor White
+    Write-Host "`nUsername: $ServerName\$GUID" -ForegroundColor White
+    Write-Host "Password: $PlainTextPassword" -ForegroundColor White  # ✅ Use new name
     Write-Host "`nPlease change your password upon first login." -ForegroundColor Yellow
     Write-Host "If you have any questions, feel free to reach out to us." -ForegroundColor Green
     Write-Host "==================================================" -ForegroundColor Cyan
@@ -225,6 +232,7 @@ function New-LocalUserAccount {
         New-LocalUser @userParams -ErrorAction Stop | Out-Null
         Write-Host "User '$guid' created successfully." -ForegroundColor Green
         Write-Host "  Full Name: $fullName" -ForegroundColor Cyan
+        Write-Log -Message "User '$guid' created successfully." -ForegroundColor Green
         if (-not [string]::IsNullOrWhiteSpace($title)) {
             Write-Host "  Title: $title" -ForegroundColor Cyan
         }
@@ -233,7 +241,7 @@ function New-LocalUserAccount {
         try {
             Add-LocalGroupMember -Group "Remote Desktop Users" -Member $guid -ErrorAction Stop
             Write-Host "User added to 'Remote Desktop Users' group for RDP access." -ForegroundColor Green
-            Show-UserCredentials -Username $fullName -Password $password -GUID $guid
+            Show-UserCredentials -Username $fullName -PlainTextPassword $password -GUID $guid
             Write-Log -Message "User '$guid' added to 'Remote Desktop Users' group."
         }
         catch {
@@ -721,6 +729,7 @@ function Set-UserPassword {
         Set-LocalUser -Name $guid -Password $securePass -ErrorAction Stop
         Write-Host "Password changed successfully for user '$guid'." -ForegroundColor Green
         Write-Log -Message "Password changed successfully for user '$guid'."
+        Show-UserCredentials -Username $fullName -PlainTextPassword $password -GUID $guid
         
         # Check if user is logged in and force logout
         $loggedIn = quser 2>$null | Select-String -Pattern $guid
@@ -839,7 +848,7 @@ try {
     
     while ($true) {
         Show-Menu
-        $choice = Read-Host "`nChoose an option (1-11)"
+        $choice = Read-Host "`nChoose an option (1-12)"
         
         switch ($choice) {
             '1'  { New-LocalUserAccount }
@@ -858,7 +867,7 @@ try {
                 exit 0 
             }
             default { 
-                Write-Host "Invalid option. Please choose a number between 1 and 11." -ForegroundColor Red 
+                Write-Host "Invalid option. Please choose a number between 1 and 12." -ForegroundColor Red 
             }
         }
         
