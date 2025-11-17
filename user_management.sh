@@ -171,7 +171,7 @@ create_user() {
         if command -v openssl &>/dev/null; then
             password=$(openssl rand -base64 $((pass_length * 3 / 4)) 2>/dev/null)
             success_rate=$($?)
-            if [ "$success_rate" -ne 0 ] || [ -z "$password" ]; then
+            if [ $success_rate -ne 0 ] || [ -z "$password" ]; then
                 echo "Warning: OpenSSL failed. Using alternative method..."
                 log_activity "Failed to create user $user_guid: OpenSSL failed."
                 password=$(tr -dc 'A-Za-z0-9!@#$%^&*()_+' < /dev/urandom | head -c "$pass_length")
@@ -195,7 +195,7 @@ create_user() {
 
     useradd -c "$username - $user_desc" -d "/home/$user_guid" -m -s /bin/bash "$user_guid"
     success_rate=$($?)
-    if [ "$success_rate" -ne 0 ]; then
+    if [ $success_rate -ne 0 ]; then
         echo "Error: Failed to create user $user_guid."
         log_activity "Failed to create user $user_guid"
         return 1
@@ -204,7 +204,7 @@ create_user() {
     set_user_password "$user_guid" "$password"
     success_rate=$($?)
 
-    if [ "$success_rate" -ne 0 ]; then
+    if [ $success_rate -ne 0 ]; then
         echo "Error: Failed to set password for user $user_guid."
         log_activity "Failed to set password for user $user_guid after creation."
         return 1
@@ -364,12 +364,12 @@ delete_user() {
     echo "Deleting user account and home directory..."
     userdel -r "$user_guid" 2>/dev/null
     success_rate=$($?)
-    if [ "$success_rate" -ne 0 ]; then
+    if [ $success_rate -ne 0 ]; then
         echo "Error: Failed to delete user $user_guid."
         echo "Attempting force deletion..."
         userdel -f -r "$user_guid" 2>/dev/null
         success_rate=$($?)
-        if [ "$success_rate" -ne 0 ]; then
+        if [ $success_rate -ne 0 ]; then
             echo "Error: Force deletion also failed. Manual intervention may be required."
             log_activity "Failed to delete user $user_guid even after force deletion."
             return 1
@@ -408,7 +408,7 @@ enable_user() {
     else
         usermod -U "$user_guid"
         success_rate=$($?)
-        if [ "$success_rate" -ne 0 ]; then
+        if [ $success_rate -ne 0 ]; then
             echo "Error: Failed to enable user $user_guid."
             log_activity "Failed to enable user $user_guid."
         else
@@ -499,7 +499,7 @@ disable_user() {
     # Disable the user account
     usermod -L "$user_guid"
     success_rate=$($?)
-    if [ "$success_rate" -ne 0 ]; then
+    if [ $success_rate -ne 0 ]; then
         echo "Error: Failed to disable user $user_guid."
         log_activity "Failed to disable user $user_guid."
     else
@@ -560,7 +560,7 @@ give_admin_rights() {
     # Alternative approach (appending to /etc/sudoers directly) - not recommended
     # echo "$user_guid    ALL=(ALL)       ALL" >> /etc/sudoers
     success_rate=$($?)
-    if [ "$success_rate" -ne 0 ]; then
+    if [ $success_rate -ne 0 ]; then
         echo "Error: Failed to give admin rights to user $user_guid."
         echo "Error: Invalid sudoers entry. Admin rights not granted to user $user_guid."
         log_activity "Failed to give admin rights to user $user_guid due to invalid sudoers entry."
@@ -779,7 +779,7 @@ modify_user_groups() {
 
         usermod -aG "$group" "$user_guid"
         success_rate=$($?)
-        if [ "$success_rate" -ne 0 ]; then
+        if [ $success_rate -ne 0 ]; then
             echo "Error: Failed to add user $user_guid to group $group."
             log_activity "Failed to add user $user_guid to group $group."
         else
