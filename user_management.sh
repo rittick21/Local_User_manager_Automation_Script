@@ -70,17 +70,13 @@ MSG
 log_activity(){
     log_message=$1
     log_file="/var/log/user_management.log"
+
     if [ ! -f "$log_file" ]; then
-        touch "$log_file"
-        chmod 600 "$log_file"
+        if ! touch "$log_file" || ! chmod 600 "$log_file"; then
+            echo "Error: Failed to create or set permissions on log file $log_file"
+            return 1
+        fi
     fi
-     # Verify if the logfile is created successfully
-    if [ $? -ne 0 ]; then 
-       echo "Error: Failed to create log file $log_file"
-       return 1
-    else 
-        echo "Log file created successfully: $log_file"
-    fi   
 
     # Append log message with timestamp
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $log_message - by $(whoami) - on $(hostname -f)" >> "$log_file"
@@ -106,7 +102,7 @@ set_user_password() {
     distro=$(get_linux_distribution)
     # distro=$(awk -F= '/^ID=/{gsub(/"/,"",$2); print $2; exit}' /etc/os-release)
 
-    case "$distro" in 
+    case "$distro" in
         "ubuntu"|"debian"|"pop"|"mint"|"kali")
             # Debian/Ubuntu based systems
             echo "$user_guid:$password" | chpasswd
@@ -114,7 +110,7 @@ set_user_password() {
         "rhel"|"centos"|"fedora"|"rocky"|"alma"|"amazon"|"oracle"|"ol"|"amzn"|"almalinux")
             # RHEL based systems
             echo "$password" | passwd --stdin "$user_guid"
-            ;;  
+            ;;
         "suse"|"opensuse"|"sles")
             # SUSE based systems
             echo "$password" | passwd --stdin "$user_guid"
@@ -123,21 +119,21 @@ set_user_password() {
             # Arch based systems
             echo "$user_guid:$password" | chpasswd
             ;;
-        *) 
+        *)
            # Fallback method that works on most Linux distros
            (echo "$password"; echo "$password") | passwd "$user_guid"
            ;;
     esac
 
     # Verify if the password is set successfully
-    if [ $? -ne 0 ]; then 
+    if [ $? -ne 0 ]; then
        echo "Error: Failed to set password for user $user_guid"
        log_activity "Failed to set password for user $user_guid"
        return 1
-    else 
+    else
         echo "Password set successfully for user $user_guid"
         log_activity "Password set successfully for user $user_guid"
-    fi          
+    fi
 }
 
 # Function to create a new user
@@ -161,7 +157,7 @@ create_user() {
         log_activity "Attempted to create user with existing guid $user_guid"
         return
     fi
-    
+
     read -p "Enter the description of the user (or press Enter to skip): " user_desc
     read -p "Set password automatically or manually? (a/m): " pass_choice
     if [ "$pass_choice" == "a" ]; then
@@ -174,7 +170,8 @@ create_user() {
         # Try to generate password with OpenSSL first
         if command -v openssl &>/dev/null; then
             password=$(openssl rand -base64 $((pass_length * 3 / 4)) 2>/dev/null)
-            if [ $? -ne 0 ] || [ -z "$password" ]; then
+            success_rate=$($?)
+            if [ $success_rate -ne 0 ] || [ -z "$password" ]; then
                 echo "Warning: OpenSSL failed. Using alternative method..."
                 log_activity "Failed to create user $user_guid: OpenSSL failed."
                 password=$(tr -dc 'A-Za-z0-9!@#$%^&*()_+' < /dev/urandom | head -c "$pass_length")
@@ -183,7 +180,7 @@ create_user() {
             echo "Warning: OpenSSL not found. Using alternative password generation method..."
             log_activity "Failed to create user $user_guid: OpenSSL not found."
             password=$(tr -dc 'A-Za-z0-9!@#$%^&*()_+' < /dev/urandom | head -c "$pass_length")
-            
+
         fi
         echo "Generated password: $password"
     else
@@ -197,31 +194,33 @@ create_user() {
     fi
 
     useradd -c "$username - $user_desc" -d "/home/$user_guid" -m -s /bin/bash "$user_guid"
-    if [ $? -ne 0 ]; then
+    success_rate=$($?)
+    if [ $success_rate -ne 0 ]; then
         echo "Error: Failed to create user $user_guid."
         log_activity "Failed to create user $user_guid"
         return 1
     fi
 
     set_user_password "$user_guid" "$password"
+    success_rate=$($?)
 
-    if [ $? -ne 0 ]; then
+    if [ $success_rate -ne 0 ]; then
         echo "Error: Failed to set password for user $user_guid."
         log_activity "Failed to set password for user $user_guid after creation."
         return 1
     fi
-    
+
     echo "User $user_guid created successfully."
     log_activity "User $user_guid created successfully."
-    echo $username
-    print_user_creds $username $user_guid $password
+    echo "$username"
+    print_user_creds "$username" "$user_guid" "$password"
 }
 
 # Function to delete an existing user (In industry, we doesn't prefer to delete a user permanently for audit and compliance reasons.)
 # Function to delete an existing user with process termination and sudo cleanup
 delete_user() {
     read -p "Enter the username(guid) of the user to delete: " user_guid
-    
+
     if [ -z "$user_guid" ]; then
         echo "User guid cannot be empty. Please provide a valid guid."
         log_activity "Failed to delete user: Empty guid provided."
@@ -233,14 +232,14 @@ delete_user() {
         log_activity "Attempted to delete non-existent user $user_guid"
         return
     fi
-    
+
     # Prevent deletion of root user
     if [ "$user_guid" == "root" ]; then
         echo "Error: Cannot delete root user."
         log_activity "Attempted to delete root user"
         return
     fi
-    
+
     # Check if user is currently logged in
     if who | grep -q "^$user_guid "; then
         echo "Warning: User $user_guid is currently logged in."
@@ -251,11 +250,11 @@ delete_user() {
             return
         fi
     fi
-    
+
     # Check if user has running processes
     user_processes=$(pgrep -u "$user_guid" 2>/dev/null)
     if [ -n "$user_processes" ]; then
-        echo "Warning: User $user_guid has running processes (PIDs: $(echo $user_processes | tr '\n' ' '))"
+        echo "Warning: User $user_guid has running processes (PIDs: $(echo "$user_processes" | tr '\n' ' '))"
         read -p "Do you want to kill all processes and delete? (y/n): " kill_processes
         if [ "$kill_processes" != "y" ]; then
             echo "User deletion cancelled."
@@ -263,7 +262,7 @@ delete_user() {
             return
         fi
     fi
-    
+
     # Final confirmation
     echo "Are you sure you want to delete user $user_guid? (y/n): "
     read confirmation
@@ -272,16 +271,16 @@ delete_user() {
         log_activity "Cancelled deletion of user $user_guid"
         return
     fi
-    
+
     echo "Starting user deletion process..."
-    
+
     # Step 1: Kill all user processes
     if [ -n "$user_processes" ]; then
         echo "Terminating user processes..."
         pkill -9 -u "$user_guid" 2>/dev/null
         log_activity "Terminated processes of user $user_guid"
         sleep 1
-        
+
         # Force kill any remaining processes
         if pgrep -u "$user_guid" >/dev/null 2>&1; then
             echo "Force killing remaining processes..."
@@ -290,7 +289,7 @@ delete_user() {
             sleep 1
         fi
     fi
-    
+
     # Step 2: Logout user sessions
     if who | grep -q "^$user_guid "; then
         echo "Logging out user sessions..."
@@ -299,10 +298,10 @@ delete_user() {
         log_activity "Logged out sessions of user $user_guid"
         sleep 1
     fi
-    
+
     # Step 3: Remove sudo privileges
     echo "Checking and removing sudo privileges..."
-    
+
     # Check if user has sudo privileges in /etc/sudoers.d/
     if [ -f "/etc/sudoers.d/$user_guid" ]; then
         echo "Commenting out sudo entry in /etc/sudoers.d/$user_guid"
@@ -311,14 +310,14 @@ delete_user() {
         # Optionally delete the file instead
         # rm -f "/etc/sudoers.d/$user_guid"
     fi
-    
+
     # Check and comment out entries in /etc/sudoers
-    if grep -q "^[[:space:]]*$user_guid[[:space:]]" /etc/sudoers; then
+    if grep -q "^[[:space:]]*{$user_guid}[[:space:]]" /etc/sudoers; then
         echo "Commenting out sudo entry in /etc/sudoers"
         # Create backup
-        cp /etc/sudoers /etc/sudoers.bak.$(date +%Y%m%d_%H%M%S)
+        cp /etc/sudoers "/etc/sudoers.bak.$(date +%Y%m%d_%H%M%S)"
         # Comment out the user's sudo line
-        sed -i "s/^[[:space:]]*$user_guid[[:space:]]/#$user_guid /" /etc/sudoers
+        sed -i "s/^[[:space:]]*{$user_guid}[[:space:]]/#$user_guid /" /etc/sudoers
         log_activity "Commented out sudo entry in /etc/sudoers for user $user_guid"
     fi
 
@@ -336,8 +335,8 @@ delete_user() {
             echo "Removing user $user_guid from sudo group"
             gpasswd -d "$user_guid" sudo
             log_activity "Removed user $user_guid from sudo group"
-        fi    
-    fi  
+        fi
+    fi
 
     # Verification
     user_groups=$(groups "$user_guid" 2>/dev/null)
@@ -360,17 +359,17 @@ delete_user() {
         log_activity "Successfully checked that no admin rights there for user $user_guid."
     fi
 
-    
+
     # Step 4: Delete the user
     echo "Deleting user account and home directory..."
     userdel -r "$user_guid" 2>/dev/null
-    
-    if [ $? -ne 0 ]; then
+    success_rate=$($?)
+    if [ $success_rate -ne 0 ]; then
         echo "Error: Failed to delete user $user_guid."
         echo "Attempting force deletion..."
         userdel -f -r "$user_guid" 2>/dev/null
-        
-        if [ $? -ne 0 ]; then
+        success_rate=$($?)
+        if [ $success_rate -ne 0 ]; then
             echo "Error: Force deletion also failed. Manual intervention may be required."
             log_activity "Failed to delete user $user_guid even after force deletion."
             return 1
@@ -382,7 +381,7 @@ delete_user() {
         echo "User $user_guid deleted successfully."
         log_activity "User $user_guid deleted successfully."
     fi
-    
+
     # Step 5: Verify deletion
     if getent passwd "$user_guid" >/dev/null 2>&1; then
         echo "Warning: User still exists in the system. Manual cleanup may be required."
@@ -408,7 +407,8 @@ enable_user() {
         return
     else
         usermod -U "$user_guid"
-        if [ $? -ne 0 ]; then
+        success_rate=$($?)
+        if [ $success_rate -ne 0 ]; then
             echo "Error: Failed to enable user $user_guid."
             log_activity "Failed to enable user $user_guid."
         else
@@ -438,7 +438,7 @@ disable_user() {
         log_activity "Attempted to disable root or currently logged-in user $user_guid."
         return
     fi
-    
+
     # Check if user is currently logged in
     if who | grep -q "^$user_guid "; then
         echo "Warning: User $user_guid is currently logged in."
@@ -471,14 +471,14 @@ disable_user() {
     fi
 
     echo "Starting user disabling process..."
-    
+
     # Step 1: Kill all user processes
     if [ -n "$user_processes" ]; then
         echo "Terminating user processes..."
         pkill -9 -u "$user_guid" 2>/dev/null
         log_activity "Terminated processes of user $user_guid"
         sleep 1
-        
+
         # Force kill any remaining processes
         if pgrep -u "$user_guid" >/dev/null 2>&1; then
             echo "Force killing remaining processes..."
@@ -487,7 +487,7 @@ disable_user() {
             sleep 1
         fi
     fi
-    
+
     # Step 2: Logout user sessions
     if who | grep -q "^$user_guid "; then
         echo "Logging out user sessions..."
@@ -498,8 +498,8 @@ disable_user() {
 
     # Disable the user account
     usermod -L "$user_guid"
-    
-    if [ $? -ne 0 ]; then
+    success_rate=$($?)
+    if [ $success_rate -ne 0 ]; then
         echo "Error: Failed to disable user $user_guid."
         log_activity "Failed to disable user $user_guid."
     else
@@ -511,7 +511,7 @@ disable_user() {
 # List all users
 list_users() {
     printf "%-20s %-6s %-12s %-30s %-20s\n" "USER" "UID" "GROUP" "HOME" "SHELL"
-    while IFS=: read -r user _ uid gid gecos home shell; do
+    while IFS=: read -r user _ uid gid _ home shell; do
       group_name=$(getent group "$gid" | cut -d: -f1)
       printf "%-20s %-6s %-12s %-30s %-20s\n" "$user" "$uid" "$group_name" "$home" "$shell"
     done < <(getent passwd)
@@ -550,17 +550,17 @@ give_admin_rights() {
     elif [ -f "/etc/sudoers.d/$user_guid" ] && grep -E -q "^[[:space:]]*${user_guid}[[:space:]]" "/etc/sudoers.d/$user_guid"; then
         echo "User $user_guid already has admin rights."
         log_activity "User $user_guid already has admin rights."
-        return 0  
+        return 0
     else
-        echo "Granting admin rights to user $user_guid..."  
-        echo "$user_guid    ALL=(ALL)       ALL" > "/etc/sudoers.d/$user_guid"  
-        chmod 440 "/etc/sudoers.d/$user_guid"  
+        echo "Granting admin rights to user $user_guid..."
+        echo "$user_guid    ALL=(ALL)       ALL" > "/etc/sudoers.d/$user_guid"
+        chmod 440 "/etc/sudoers.d/$user_guid"
     fi
-    
+
     # Alternative approach (appending to /etc/sudoers directly) - not recommended
     # echo "$user_guid    ALL=(ALL)       ALL" >> /etc/sudoers
-
-    if [ $? -ne 0 ]; then
+    success_rate=$($?)
+    if [ $success_rate -ne 0 ]; then
         echo "Error: Failed to give admin rights to user $user_guid."
         echo "Error: Invalid sudoers entry. Admin rights not granted to user $user_guid."
         log_activity "Failed to give admin rights to user $user_guid due to invalid sudoers entry."
@@ -590,10 +590,10 @@ remove_admin_rights() {
         echo "Error: Cannot remove admin rights from root user."
         log_activity "Attempted to remove admin rights from root user."
         return
-    fi  
-  
+    fi
+
     # Check if the user is currently logged in
-    if who | grep -q "$user_guid"; then 
+    if who | grep -q "$user_guid"; then
         echo "Warning: User $user_guid is currently logged in."
         read -p "Do you want to proceed with removing admin rights? (y/n): " proceed
         if [ "$proceed" != "y" ]; then
@@ -606,7 +606,7 @@ remove_admin_rights() {
     # Check if user has running processes
     user_processes=$(pgrep -u "$user_guid" 2>/dev/null)
     if [ -n "$user_processes" ]; then
-        echo "Warning: User $user_guid has running processes (PIDs: $(echo $user_processes | tr '\n' ' '))"
+        echo "Warning: User $user_guid has running processes (PIDs: $(echo "$user_processes" | tr '\n' ' '))"
         read -p "Do you want to proceed with removing admin rights? (y/n): " proceed
         if [ "$proceed" != "y" ]; then
             echo "Operation cancelled."
@@ -651,7 +651,7 @@ remove_admin_rights() {
 
     # Step 3: Remove sudo privileges
     echo "Checking and removing sudo privileges..."
-    
+
     # Check if user has sudo privileges in /etc/sudoers.d/
     if [ -f "/etc/sudoers.d/$user_guid" ]; then
         echo "Commenting out sudo entry in /etc/sudoers.d/$user_guid"
@@ -660,14 +660,14 @@ remove_admin_rights() {
         # Optionally delete the file instead
         # rm -f "/etc/sudoers.d/$user_guid"
     fi
-    
+
     # Check and comment out entries in /etc/sudoers
-    if grep -q "^[[:space:]]*$user_guid[[:space:]]" /etc/sudoers; then
+    if grep -q "^[[:space:]]*{$user_guid}[[:space:]]" /etc/sudoers; then
         echo "Commenting out sudo entry in /etc/sudoers"
         # Create backup
-        cp /etc/sudoers /etc/sudoers.bak.$(date +%Y%m%d_%H%M%S)
+        cp /etc/sudoers "/etc/sudoers.bak.$(date +%Y%m%d_%H%M%S)"
         # Comment out the user's sudo line
-        sed -i "s/^[[:space:]]*$user_guid[[:space:]]/#$user_guid /" /etc/sudoers
+        sed -i "s/^[[:space:]]*{$user_guid}[[:space:]]/#$user_guid /" /etc/sudoers
         log_activity "Commented out sudo entry in /etc/sudoers for user $user_guid"
     fi
 
@@ -685,7 +685,7 @@ remove_admin_rights() {
             echo "Removing user $user_guid from sudo group"
             gpasswd -d "$user_guid" sudo
             log_activity "Removed user $user_guid from sudo group"
-        fi 
+        fi
     fi
 
     # Verification
@@ -774,11 +774,12 @@ modify_user_groups() {
             echo "Group $group does not exist."
             echo "Please make sure to add and configure the group"
             log_activity "Failed to modify groups for user $user_guid: Group $group does not exist."
-            return 1 
+            return 1
         fi
 
         usermod -aG "$group" "$user_guid"
-        if [ $? -ne 0 ]; then
+        success_rate=$($?)
+        if [ $success_rate -ne 0 ]; then
             echo "Error: Failed to add user $user_guid to group $group."
             log_activity "Failed to add user $user_guid to group $group."
         else
@@ -808,9 +809,9 @@ while true; do
         *) echo "Invalid option. Please choose a number between 1 and 12." ;;
     esac
     echo
-done    
+done
 
-# # --- IGNORE ---    
+# # --- IGNORE ---
 # # returns 0 if group exists, 1 if not
 # group_exists() {
 #   # $1 = group name
